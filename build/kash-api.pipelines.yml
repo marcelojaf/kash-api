@@ -1,0 +1,77 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: "windows-latest"
+
+variables:
+  buildPlatform: "Any CPU"
+  buildConfiguration: "Release"
+  solution: "**/src/Kash.Api.sln"
+  project: "**/src/Kash.Api/Kash.Api.csproj"
+  major: 1
+  minor: 0
+  patch: 0
+
+jobs:
+  - job: BuildAPI
+    displayName: "API Build"
+    steps:
+      - task: NuGetToolInstaller@1
+        name: "NuGetToolInstaller"
+        displayName: "NuGet Tool Installer"
+        inputs:
+          versionSpec:
+          checkLatest: true
+
+      - task: NuGetCommand@2
+        inputs:
+          command: "restore"
+          restoreSolution: "$(solution)"
+          feedsToUse: "select"
+
+      - task: DotNetCoreCLI@2
+        displayName: "DoNet Restore"
+        inputs:
+          command: "restore"
+          projects: "$(project)"
+          feedsToUse: "select"
+
+      - task: PowerShell@2
+        displayName: "Generate Build Number"
+        inputs:
+          targetType: "inline"
+          script: |
+            # Write the build version number
+            Write-Host "Build Number"
+            Write-Host $(major).$(minor).$(patch).$(Build.BuildNumber)
+            Write-Host Source Directory == $(Build.SourcesDirectory)
+            Set-Content -Path $(Build.SourcesDirectory)\src\Kash.Api\buildVersion.dat -Value $(major).$(minor).$(patch).$(Build.BuildNumber)
+      
+
+      - task: DotNetCoreCLI@2
+        displayName: "DoNet Build Copy"
+        inputs:
+          command: "build"
+          projects: "$(project)"
+          arguments: "--configuration $(buildConfiguration)"
+          feedsToUse: "select"
+
+      - task: DotNetCoreCLI@2
+        displayName: "DotNet Publish Copy"
+        inputs:
+          command: publish
+          arguments: "--configuration $(buildConfiguration) --output $(build.artifactstagingdirectory)"
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish Pipeline Artifact copy'
+        inputs:
+            targetPath: '$(build.artifactstagingdirectory)'
+            artifact: 'drop-api'
